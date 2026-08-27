@@ -54,8 +54,20 @@ export function createTpassNextAuth(config) {
                 },
             });
         },
-        async logoutHandler() {
-            const authLogout = `${auth.authLogoutUrl}?redirect_uri=${encodeURIComponent(auth.selfUrl)}`;
+        async logoutHandler(request) {
+            let next = "/";
+            if (request) {
+                try {
+                    next = String((await request.formData()).get("next") ?? "/");
+                }
+                catch {
+                    // 沒有 body 或不是表單編碼——照樣登出，回根路徑。
+                }
+            }
+            // next 只能是站內路徑（防 Open Redirect）——與 callback 同一條規則。
+            const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+            const returnTo = new URL(safeNext, auth.selfUrl).toString();
+            const authLogout = `${auth.authLogoutUrl}?redirect_uri=${encodeURIComponent(returnTo)}`;
             const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><title>登出中…</title></head>
 <body onload="document.forms[0].submit()">

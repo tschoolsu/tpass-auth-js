@@ -21,9 +21,13 @@ export interface TpassNextAuth extends TpassAuth {
    * POST /api/auth/logout —— 兩段式登出：先清自己的 cookie，
    * 再回一頁自動送出的 form POST 到 auth 清登入態，auth 再導回本服務。
    *
+   * 表單可帶站內路徑 `next`：登出後回到指定頁而不是根路徑（「切換帳號」需要它——
+   * 根路徑未登入通常會自動導去 authorize，使用者根本來不及選帳號）。
+   * 沒有 body、或 body 不是表單編碼，一樣要能登出，不會因為讀 body 失敗就 500。
+   *
    * 用法：`export const POST = tpass.logoutHandler;`
    */
-  logoutHandler(): Promise<Response>;
+  logoutHandler(request?: Request): Promise<Response>;
 }
 
 const escapeHtml = (s: string) =>
@@ -86,8 +90,19 @@ export function createTpassNextAuth(config: TpassAuthConfig): TpassNextAuth {
       });
     },
 
-    async logoutHandler() {
-      const authLogout = `${auth.authLogoutUrl}?redirect_uri=${encodeURIComponent(auth.selfUrl)}`;
+    async logoutHandler(request) {
+      let next = "/";
+      if (request) {
+        try {
+          next = String((await request.formData()).get("next") ?? "/");
+        } catch {
+          // 沒有 body 或不是表單編碼——照樣登出，回根路徑。
+        }
+      }
+      // next 只能是站內路徑（防 Open Redirect）——與 callback 同一條規則。
+      const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      const returnTo = new URL(safeNext, auth.selfUrl).toString();
+      const authLogout = `${auth.authLogoutUrl}?redirect_uri=${encodeURIComponent(returnTo)}`;
       const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><title>登出中…</title></head>
 <body onload="document.forms[0].submit()">

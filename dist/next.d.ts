@@ -14,9 +14,13 @@ export interface TpassNextAuth extends TpassAuth {
      * POST /api/auth/logout —— 兩段式登出：先清自己的 cookie，
      * 再回一頁自動送出的 form POST 到 auth 清登入態，auth 再導回本服務。
      *
+     * 表單可帶站內路徑 `next`：登出後回到指定頁而不是根路徑（「切換帳號」需要它——
+     * 根路徑未登入通常會自動導去 authorize，使用者根本來不及選帳號）。
+     * 沒有 body、或 body 不是表單編碼，一樣要能登出，不會因為讀 body 失敗就 500。
+     *
      * 用法：`export const POST = tpass.logoutHandler;`
      */
-    logoutHandler(): Promise<Response>;
+    logoutHandler(request?: Request): Promise<Response>;
 }
 export declare function createTpassNextAuth(config: TpassAuthConfig): TpassNextAuth;
 export type { TPassClaims, TpassAuthConfig } from "./types.js";

@@ -21,11 +21,11 @@ T-Pass SSO **消費端**驗章套件（契約 v2）。一行 import 取代以前
 ## 安裝
 
 ```bash
-pnpm add github:tschoolsu/tpass-auth-js#v1.0.1
+pnpm add github:tschoolsu/tpass-auth-js#v1.1.0
 pnpm add jose            # peer dependency
 ```
 
-版本一律**釘 tag**（`#v1.0.1`），不要用 `#main`。
+版本一律**釘 tag**（`#v1.1.0`），不要用 `#main`。
 
 ## 用法（Next.js App Router）
 
@@ -76,6 +76,8 @@ import { tpass } from "@/config/auth";
 export const runtime = "nodejs";
 export const POST = tpass.logoutHandler;
 ```
+
+登出表單可以帶一個站內路徑 `next`（登出後回到那一頁而不是根路徑，「切換帳號」需要它）。
 
 ## 不是 Next.js？
 
