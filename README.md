@@ -21,11 +21,11 @@ T-Pass SSO **消費端**驗章套件（契約 v2）。一行 import 取代以前
 ## 安裝
 
 ```bash
-pnpm add github:tschoolsu/tpass-auth-js#v1.0.0
+pnpm add github:tschoolsu/tpass-auth-js#v1.0.1
 pnpm add jose            # peer dependency
 ```
 
-版本一律**釘 tag**（`#v1.0.0`），不要用 `#main`。
+版本一律**釘 tag**（`#v1.0.1`），不要用 `#main`。
 
 ## 用法（Next.js App Router）
 
@@ -106,4 +106,6 @@ pnpm run build     # 產出 dist/，dist 直接進 git
 ```
 
 `dist/` 進版控是刻意的：消費端與主機用 git URL 安裝，這樣 install 時不必編譯任何東西。
-CI 會檢查 `dist` 跟 `src` 是否同步。
+**所以這個套件沒有 `prepare` script**——有的話 pnpm 會要求每個消費端把它加進
+`onlyBuiltDependencies` 白名單才肯安裝。代價是「改了 src 忘了 build」，那件事由 CI 擋
+（`git diff --exit-code -- dist`）。改完 src 一定要跑一次 `pnpm run build` 再 commit。
