@@ -21,11 +21,11 @@ T-Pass SSO **消費端**驗章套件（契約 v2）。一行 import 取代以前
 ## 安裝
 
 ```bash
-pnpm add github:tschoolsu/tpass-auth-js#v1.1.0
+pnpm add github:tschoolsu/tpass-auth-js#v1.1.1
 pnpm add jose            # peer dependency
 ```
 
-版本一律**釘 tag**（`#v1.1.0`），不要用 `#main`。
+版本一律**釘 tag**（`#v1.1.1`），不要用 `#main`。
 
 ## 用法（Next.js App Router）
 

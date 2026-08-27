@@ -218,6 +218,12 @@ describe("configFromEnv", () => {
     expect(configFromEnv("FORM_SELF_URL", env).serviceId).toBe("form");
   });
 
+  it("不吃 TPASS_COOKIE_NAME（v1 遺留物，讀了會靜默退回舊 cookie 名）", () => {
+    const c = configFromEnv("FORM_SELF_URL", { ...env, TPASS_COOKIE_NAME: "tpass_session" });
+    expect(c.cookieName).toBeUndefined();
+    expect(createTpassAuth(c).cookieName).toBe("tpass_token");
+  });
+
   it("缺哪幾顆就講哪幾顆（fail closed）", () => {
     const { AUTH_JWKS_URL: _a, FORM_SELF_URL: _b, ...rest } = env;
     expect(() => configFromEnv("FORM_SELF_URL", rest)).toThrow(/AUTH_JWKS_URL.*FORM_SELF_URL/);

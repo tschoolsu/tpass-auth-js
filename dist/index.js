@@ -50,7 +50,9 @@ export function configFromEnv(selfUrlEnvName, env = process.env) {
         authorizeUrl: env.AUTH_AUTHORIZE_URL,
         authLogoutUrl: env.AUTH_LOGOUT_URL,
         deniedUrl: env.AUTH_DENIED_URL,
-        cookieName: env.TPASS_COOKIE_NAME,
+        // ⚠️ cookie 名稱刻意不吃 env。TPASS_COOKIE_NAME 是契約 v1 的遺留物，
+        // 有些 .env.local 裡還留著 tpass_session 那個舊值——讀它會讓服務靜默退回 v1 的名字。
+        // v2 的 cookie 名是固定的（tpass_token），要換只能在程式碼裡明講。
     };
 }
 /**

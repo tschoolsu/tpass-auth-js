@@ -1,6 +1,6 @@
 {
   "name": "tpass-auth-js",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "T-Pass SSO 消費端驗章套件（契約 v2）：JWKS 本地驗章、per-service audience、host-only cookie、Next.js callback/logout route handler。",
   "license": "MIT",
   "repository": {
