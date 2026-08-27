@@ -1,0 +1,39 @@
+# CI：型別、測試、建置，外加「dist 有沒有跟 src 同步」。
+#
+# 為什麼要驗 dist：這個套件是用 git URL 安裝的（repo 都是 public，不必養私有 registry），
+# 而 dist/ 直接進 git——消費端與主機因此不必在 install 時編譯任何東西。
+# 代價是「改了 src 忘了跑 build」會讓消費端拿到舊行為，而且完全沒有徵兆。
+# 所以那件事在這裡變成一個紅燈。
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      # 22 是刻意的：主機跑的就是 node v22。
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test
+      - run: pnpm run build
+      - name: dist 必須與 src 同步
+        run: git diff --exit-code -- dist
