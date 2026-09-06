@@ -24,7 +24,7 @@ const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
  *    `new URL(safeNext, selfUrl)`，而 `//evil.example` 是合法的 protocol-relative
  *    URL：第二次解析會把它當成「沿用 selfUrl 的 scheme、換成 evil.example 的
  *    host」，這才真正跑出網域。所以輸出本身也不能以 `//` 開頭，這裡直接對
- *    「正規化後的 pathname」補一刀，不是對使用者原始輸入補——原始輸入长怎樣不重要，
+ *    「正規化後的 pathname」補一刀，不是對使用者原始輸入補——原始輸入長怎樣不重要，
  *    重要的是丟給第二次 `new URL()` 的字串必須安全。
  *
  * 修完之後輸出只有一種形狀：以單一 `/` 開頭、不含 `\`、`..` 已被收斂，是不動點——
