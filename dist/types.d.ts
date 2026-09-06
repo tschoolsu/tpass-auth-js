@@ -33,6 +33,12 @@ export interface TPassClaims {
     entryYear: number | null;
     exp: number;
 }
+import type { RemoteJWKSetOptions } from "jose";
+/**
+ * D10-1：createRemoteJWKSet 的快取相關選項，選填覆寫（見 index.ts 的預設值與說明）。
+ * 只挑這三顆——jwksCache／customFetch 那類進階選項消費端目前用不到，不開放。
+ */
+export type JwksCacheOptions = Pick<RemoteJWKSetOptions, "cacheMaxAge" | "cooldownDuration" | "timeoutDuration">;
 /**
  * 消費端設定。全部 env 驅動，網域一律不寫死（見 configFromEnv）。
  */
@@ -53,4 +59,6 @@ export interface TpassAuthConfig {
     deniedUrl?: string;
     /** 選填：本服務自己的 cookie 名稱，預設 tpass_token。 */
     cookieName?: string;
+    /** 選填：覆寫 JWKS 快取行為（見 index.ts createTpassAuth 的預設值與說明）。 */
+    jwksOptions?: JwksCacheOptions;
 }

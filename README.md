@@ -92,6 +92,8 @@ const session = await tpass.verifyToken(tokenFromYourOwnCookie);
 
 `tpass-auth-js/next` 只是在它之上加了 `getSession()` 與那兩條 route handler。
 
+JWKS 快取預設 `cacheMaxAge` 24 小時（D10-1；jose 6 原生預設只有 10 分鐘，auth 短暫中斷或本服務被重啟打掉記憶體快取就會逼全部驗章立刻重抓、抓不到就整批失敗），需要的話用 `jwksOptions` 選填覆寫 `cacheMaxAge` / `cooldownDuration` / `timeoutDuration`。換金鑰時只要 kid 也換掉就不受這 24 小時影響（kid 不符會照樣立即重抓，只受 `cooldownDuration` 限制）。
+
 ## 紅線
 
 - ❌ 不要在前端驗章、不要把 token 塞 `localStorage`（cookie 是 HttpOnly，本來就拿不到）。

@@ -12,6 +12,19 @@
 //
 // 驗章只能在 server 端做（cookie 是 HttpOnly，瀏覽器 JS 拿不到）。
 import { createRemoteJWKSet, jwtVerify } from "jose";
+// D10-1：jose 6 的 createRemoteJWKSet 不帶選項時，cacheMaxAge 預設只有 10 分鐘——
+// 快取一過期就無條件重抓 JWKS，auth 短暫中斷（或本服務被 pm2 重啟、記憶體快取歸零）
+// 那段時間全部驗章會整批失敗。拉到 24 小時大幅降低「快取剛好過期又抓不到」的機率。
+//
+// kid 不符時 jose 仍會立即觸發重抓（只受 cooldownDuration 約束，不受 cacheMaxAge 限制）：
+// 所以只要換金鑰時「連 kid 一起換」，這個 24 小時上限完全不影響換鑰即時生效；
+// 真正會被這個放寬影響的只有「已換鑰但沿用同一個 kid」這種做法本來就會靜默驗不過
+// 的既有行為（gen-keys 已經提醒過，不是這裡新增的風險）。
+const DEFAULT_JWKS_OPTIONS = {
+    cacheMaxAge: 24 * 60 * 60 * 1000,
+    cooldownDuration: 30_000,
+    timeoutDuration: 5_000,
+};
 /**
  * 安全預設：claim 缺 permissions、或沒有該 serviceId 的 key（舊票、或非 overview 服務
  * 對別的 serviceId 沒有資料）→ 一律視為「能讀、預設角色」。
@@ -66,8 +79,11 @@ export function createTpassAuth(config) {
     const authOrigin = new URL(config.authorizeUrl).origin;
     const deniedBase = config.deniedUrl || `${authOrigin}/denied`;
     // createRemoteJWKSet 內建記憶體快取 + 依 kid 選鑰 + 金鑰輪替時自動重抓（含冷卻）。
-    // 首次驗章才會真的 fetch 一次 JWKS。
-    const jwks = createRemoteJWKSet(new URL(config.jwksUrl));
+    // 首次驗章才會真的 fetch 一次 JWKS。快取選項見上方 DEFAULT_JWKS_OPTIONS 的說明。
+    const jwks = createRemoteJWKSet(new URL(config.jwksUrl), {
+        ...DEFAULT_JWKS_OPTIONS,
+        ...config.jwksOptions,
+    });
     return {
         serviceId: config.serviceId,
         audience,

@@ -5,9 +5,16 @@
 // 現在漏掉任何一鐵則，這裡就會紅。
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { SignJWT, exportJWK, generateKeyPair, createRemoteJWKSet, type JWK } from "jose";
 import { createTpassAuth, configFromEnv } from "./index.js";
+
+// createRemoteJWKSet 換成「照樣運作、但記得每次呼叫參數」的 spy，
+// 這樣既能測 D10-1 的快取選項，也不影響上面驗章邏輯的其他測試。
+vi.mock("jose", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("jose")>();
+  return { ...actual, createRemoteJWKSet: vi.fn(actual.createRemoteJWKSet) };
+});
 
 const ISSUER = "https://auth.test.invalid";
 const SERVICE = "form";
@@ -227,5 +234,40 @@ describe("configFromEnv", () => {
   it("缺哪幾顆就講哪幾顆（fail closed）", () => {
     const { AUTH_JWKS_URL: _a, FORM_SELF_URL: _b, ...rest } = env;
     expect(() => configFromEnv("FORM_SELF_URL", rest)).toThrow(/AUTH_JWKS_URL.*FORM_SELF_URL/);
+  });
+});
+
+// D10-1：jose 6 預設 cacheMaxAge 只有 10 分鐘，auth 短暫中斷（或消費端被 pm2 重啟
+// 打掉記憶體快取）就會逼所有還在線的使用者立刻重抓 JWKS——抓不到就整批驗不過。
+describe("JWKS 快取設定（D10-1）", () => {
+  const mockedCreateRemoteJWKSet = vi.mocked(createRemoteJWKSet);
+
+  it("預設把 cacheMaxAge 拉到 24 小時，並帶 cooldown/timeout", () => {
+    mockedCreateRemoteJWKSet.mockClear();
+    auth();
+    expect(mockedCreateRemoteJWKSet).toHaveBeenCalledTimes(1);
+    const [url, options] = mockedCreateRemoteJWKSet.mock.calls[0]!;
+    expect(url).toEqual(new URL(jwksUrl));
+    expect(options?.cacheMaxAge).toBe(24 * 60 * 60 * 1000);
+    expect(options?.cooldownDuration).toBe(30_000);
+    expect(options?.timeoutDuration).toBe(5_000);
+  });
+
+  it("可以由 config 覆寫", () => {
+    mockedCreateRemoteJWKSet.mockClear();
+    createTpassAuth({
+      jwksUrl,
+      issuer: ISSUER,
+      serviceId: SERVICE,
+      selfUrl: "https://form.test.invalid",
+      authorizeUrl: `${ISSUER}/api/auth/authorize`,
+      authLogoutUrl: `${ISSUER}/api/auth/logout`,
+      jwksOptions: { cacheMaxAge: 60_000 },
+    });
+    const [, options] = mockedCreateRemoteJWKSet.mock.calls[0]!;
+    expect(options?.cacheMaxAge).toBe(60_000);
+    // 沒覆寫到的欄位維持預設，不會因為傳了部分 options 就整組被清掉。
+    expect(options?.cooldownDuration).toBe(30_000);
+    expect(options?.timeoutDuration).toBe(5_000);
   });
 });

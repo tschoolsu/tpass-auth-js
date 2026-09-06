@@ -1,5 +1,5 @@
 import type { PermissionEntry, TPassClaims, TpassAuthConfig } from "./types.js";
-export type { PermissionEntry, PermissionMap, Restriction, Role, TPassClaims, TpassAuthConfig, } from "./types.js";
+export type { JwksCacheOptions, PermissionEntry, PermissionMap, Restriction, Role, TPassClaims, TpassAuthConfig, } from "./types.js";
 export interface TpassAuth {
     /** 本服務的 id（＝ tpass-registry 的 id）。 */
     readonly serviceId: string;
