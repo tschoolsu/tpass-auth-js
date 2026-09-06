@@ -77,7 +77,7 @@ export const runtime = "nodejs";
 export const POST = tpass.logoutHandler;
 ```
 
-登出表單可以帶一個站內路徑 `next`（登出後回到那一頁而不是根路徑，「切換帳號」需要它）；callback 也支援。判斷是否為站內路徑一律用解析後的 origin 比對（`safeNextPath`），不是字串開頭長相，防止反斜線變體之類繞過 open redirect 防護。
+登出表單可以帶一個站內路徑 `next`（登出後回到那一頁而不是根路徑，「切換帳號」需要它）；callback 也支援。判斷是否為站內路徑（`safeNextPath`）分兩段：先用解析後的 origin 比對（不是字串開頭長相，防止反斜線變體之類繞過 open redirect 防護），再檢查正規化輸出是否以 `//` 開頭並打回根路徑（`..`／反斜線／百分號編碼疊加可能讓 pathname 收斂成 `//host` 這種 protocol-relative 形狀，第二次 `new URL()` 解析會把它當成跨網域網址）。
 
 ## 不是 Next.js？
 

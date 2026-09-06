@@ -9,11 +9,26 @@ const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 /**
  * 判斷 `next` 是否為站內路徑，是就回傳可安全使用的路徑，不是就回 `/`。
  *
- * 不能只檢查字串開頭是不是單一 `/`：WHATWG URL 對 http(s) 這類 special scheme
- * 會把 `\` 正規化成 `/`，所以 `new URL("/\\evil.invalid/x", selfUrl)` 會解析成
- * `https://evil.invalid/x`——字串檢查騙得過，但 URL 已經跑到別的網域。
- * 因此判斷一律用「解析後的 origin 是否等於 selfUrl 的 origin」，而不是原字串長相；
- * 回傳的也是解析後的 `pathname + search + hash`，不是原字串。
+ * 兩段式檢查，缺一都會被繞過：
+ *
+ * 1. **輸入階段：origin 比對。** 不能只檢查字串開頭是不是單一 `/`：WHATWG URL
+ *    對 http(s) 這類 special scheme 會把 `\` 正規化成 `/`，所以
+ *    `new URL("/\\evil.invalid/x", selfUrl)` 會解析成 `https://evil.invalid/x`——
+ *    字串檢查騙得過，但 URL 已經跑到別的網域。因此判斷一律用「解析後的 origin
+ *    是否等於 selfUrl 的 origin」，而不是原字串長相。
+ * 2. **輸出階段：擋 `//` 開頭。**（A4-1 補修）步驟 1 只保證「這次解析」沒有跑出
+ *    origin，但 `..`／反斜線／百分號編碼在正規化路徑段時會互相疊加，把
+ *    `/..//evil.example` 這類字串的 pathname 收斂成 `//evil.example`——這一步
+ *    origin 仍然等於 selfUrl（因為 `..` 已經被吃掉、根本沒跑出去），檢查騙不了。
+ *    但呼叫端（callbackHandler／logoutHandler）會拿這個回傳值**再解析一次**
+ *    `new URL(safeNext, selfUrl)`，而 `//evil.example` 是合法的 protocol-relative
+ *    URL：第二次解析會把它當成「沿用 selfUrl 的 scheme、換成 evil.example 的
+ *    host」，這才真正跑出網域。所以輸出本身也不能以 `//` 開頭，這裡直接對
+ *    「正規化後的 pathname」補一刀，不是對使用者原始輸入補——原始輸入长怎樣不重要，
+ *    重要的是丟給第二次 `new URL()` 的字串必須安全。
+ *
+ * 修完之後輸出只有一種形狀：以單一 `/` 開頭、不含 `\`、`..` 已被收斂，是不動點——
+ * `safeNextPath(safeNextPath(x, self), self) === safeNextPath(x, self)`。
  */
 export function safeNextPath(next, selfUrl) {
     if (!next.startsWith("/") || next.startsWith("//"))
@@ -27,7 +42,12 @@ export function safeNextPath(next, selfUrl) {
     }
     if (url.origin !== new URL(selfUrl).origin)
         return "/";
-    return `${url.pathname}${url.search}${url.hash}`;
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    // pathname 正規化後可能收斂成 // 開頭（/..//evil.example 之類），
+    // 這種字串丟進第二次 new URL() 會被當成 protocol-relative 跑出 origin。
+    if (path.startsWith("//"))
+        return "/";
+    return path;
 }
 function cookieHeader(name, value, opts) {
     const parts = [

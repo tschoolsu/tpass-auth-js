@@ -73,6 +73,50 @@ describe("safeNextPath", () => {
   it("站內路徑原樣（含 query 與 hash）保留", () => {
     expect(safeNextPath("/e/abc?x=1#y", SELF)).toBe("/e/abc?x=1#y");
   });
+
+  // A4-1 補修：這六個字串經 WHATWG URL 正規化後 pathname 會收斂成 `//evil.example`，
+  // origin 比對騙得過（跟 selfUrl 同源），但輸出字串本身已經是 protocol-relative，
+  // 第二次 `new URL(輸出, selfUrl)`（callbackHandler/logoutHandler 都這樣用）就會跑到 evil.example。
+  it("正規化後會收斂成 // 開頭的變體（/..// 系列）一律打回根路徑", () => {
+    for (const bad of [
+      "/..//evil.example",
+      "/./..//evil.example",
+      "/a/../..//evil.example",
+      "/../\\evil.example",
+      "/%2e%2e//evil.example",
+      "/..\\/evil.example",
+    ]) {
+      expect(safeNextPath(bad, SELF)).toBe("/");
+    }
+  });
+
+  it("不誤殺長得像但不會收斂成 // 的路徑", () => {
+    expect(safeNextPath("/...//evil.example", SELF)).toBe("/...//evil.example");
+    expect(safeNextPath("/a/../b", SELF)).toBe("/b");
+  });
+
+  it("是不動點：對同一批輸入再跑一次結果不變", () => {
+    const inputs = [
+      "/",
+      "/e/abc?x=1#y",
+      "/..//evil.example",
+      "/./..//evil.example",
+      "/a/../..//evil.example",
+      "/../\\evil.example",
+      "/%2e%2e//evil.example",
+      "/..\\/evil.example",
+      "/...//evil.example",
+      "/a/../b",
+      "//evil.invalid",
+      "https://evil.invalid",
+      "",
+    ];
+    for (const x of inputs) {
+      const once = safeNextPath(x, SELF);
+      const twice = safeNextPath(once, SELF);
+      expect(twice).toBe(once);
+    }
+  });
 });
 
 describe("callbackHandler", () => {
@@ -105,6 +149,22 @@ describe("callbackHandler", () => {
     const location = res.headers.get("Location")!;
     expect(new URL(location).origin).toBe(new URL(SELF).origin);
     expect(location).not.toContain("evil.invalid");
+  });
+
+  it("next 帶 /..// 正規化變體不能逃出 selfUrl 的 origin（A4-1 補修）", async () => {
+    for (const bad of [
+      "/..//evil.example",
+      "/./..//evil.example",
+      "/a/../..//evil.example",
+      "/../\\evil.example",
+      "/%2e%2e//evil.example",
+      "/..\\/evil.example",
+    ]) {
+      const res = await tpass().callbackHandler(formPost({ token: await token(), next: bad }));
+      const location = res.headers.get("Location")!;
+      expect(new URL(location).origin).toBe(new URL(SELF).origin);
+      expect(location).not.toContain("evil.example");
+    }
   });
 
   it("別的服務的票 → 401，而且不寫 cookie", async () => {
@@ -156,6 +216,26 @@ describe("logoutHandler", () => {
     const html = await (await tpass().logoutHandler(req)).text();
     expect(html).toContain(encodeURIComponent(`${SELF}/`));
     expect(html).not.toContain("evil.invalid");
+  });
+
+  it("next 帶 /..// 正規化變體不能逃出 selfUrl 的 origin（A4-1 補修）", async () => {
+    for (const bad of [
+      "/..//evil.example",
+      "/./..//evil.example",
+      "/a/../..//evil.example",
+      "/../\\evil.example",
+      "/%2e%2e//evil.example",
+      "/..\\/evil.example",
+    ]) {
+      const req = new Request(`${SELF}/api/auth/logout`, {
+        method: "POST",
+        body: new URLSearchParams({ next: bad }),
+      });
+      const html = await (await tpass().logoutHandler(req)).text();
+      const redirectUri = decodeURIComponent(/redirect_uri=([^"]+)/.exec(html)![1]!);
+      expect(new URL(redirectUri).origin).toBe(new URL(SELF).origin);
+      expect(redirectUri).not.toContain("evil.example");
+    }
   });
 
   it("沒有 body 的 POST 一樣登得出去", async () => {
