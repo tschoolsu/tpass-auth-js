@@ -6,6 +6,29 @@
 import { cookies } from "next/headers";
 import { createTpassAuth } from "./index.js";
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+/**
+ * 判斷 `next` 是否為站內路徑，是就回傳可安全使用的路徑，不是就回 `/`。
+ *
+ * 不能只檢查字串開頭是不是單一 `/`：WHATWG URL 對 http(s) 這類 special scheme
+ * 會把 `\` 正規化成 `/`，所以 `new URL("/\\evil.invalid/x", selfUrl)` 會解析成
+ * `https://evil.invalid/x`——字串檢查騙得過，但 URL 已經跑到別的網域。
+ * 因此判斷一律用「解析後的 origin 是否等於 selfUrl 的 origin」，而不是原字串長相；
+ * 回傳的也是解析後的 `pathname + search + hash`，不是原字串。
+ */
+export function safeNextPath(next, selfUrl) {
+    if (!next.startsWith("/") || next.startsWith("//"))
+        return "/";
+    let url;
+    try {
+        url = new URL(next, selfUrl);
+    }
+    catch {
+        return "/";
+    }
+    if (url.origin !== new URL(selfUrl).origin)
+        return "/";
+    return `${url.pathname}${url.search}${url.hash}`;
+}
 function cookieHeader(name, value, opts) {
     const parts = [
         `${name}=${value}`,
@@ -41,7 +64,7 @@ export function createTpassNextAuth(config) {
             if (!claims)
                 return new Response("Invalid token", { status: 401 });
             // next 只能是站內路徑（防 Open Redirect）。
-            const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+            const safeNext = safeNextPath(next, auth.selfUrl);
             return new Response(null, {
                 status: 303,
                 headers: {
@@ -65,7 +88,7 @@ export function createTpassNextAuth(config) {
                 }
             }
             // next 只能是站內路徑（防 Open Redirect）——與 callback 同一條規則。
-            const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+            const safeNext = safeNextPath(next, auth.selfUrl);
             const returnTo = new URL(safeNext, auth.selfUrl).toString();
             const authLogout = `${auth.authLogoutUrl}?redirect_uri=${encodeURIComponent(returnTo)}`;
             const html = `<!doctype html>

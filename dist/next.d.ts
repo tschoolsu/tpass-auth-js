@@ -22,6 +22,16 @@ export interface TpassNextAuth extends TpassAuth {
      */
     logoutHandler(request?: Request): Promise<Response>;
 }
+/**
+ * 判斷 `next` 是否為站內路徑，是就回傳可安全使用的路徑，不是就回 `/`。
+ *
+ * 不能只檢查字串開頭是不是單一 `/`：WHATWG URL 對 http(s) 這類 special scheme
+ * 會把 `\` 正規化成 `/`，所以 `new URL("/\\evil.invalid/x", selfUrl)` 會解析成
+ * `https://evil.invalid/x`——字串檢查騙得過，但 URL 已經跑到別的網域。
+ * 因此判斷一律用「解析後的 origin 是否等於 selfUrl 的 origin」，而不是原字串長相；
+ * 回傳的也是解析後的 `pathname + search + hash`，不是原字串。
+ */
+export declare function safeNextPath(next: string, selfUrl: string): string;
 export declare function createTpassNextAuth(config: TpassAuthConfig): TpassNextAuth;
 export type { TPassClaims, TpassAuthConfig } from "./types.js";
 export { configFromEnv } from "./index.js";

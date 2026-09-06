@@ -5,7 +5,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
-import { createTpassNextAuth } from "./next.js";
+import { createTpassNextAuth, safeNextPath } from "./next.js";
 
 const ISSUER = "https://auth.test.invalid";
 const SELF = "https://form.test.invalid";
@@ -56,6 +56,25 @@ function formPost(body: Record<string, string>) {
   });
 }
 
+describe("safeNextPath", () => {
+  it("反斜線變體、protocol-relative、外部網址、非法 scheme、空字串都打回根路徑", () => {
+    for (const bad of [
+      "/\\evil.invalid/x",
+      "//evil.invalid",
+      "/\\/evil.invalid",
+      "https://evil.invalid",
+      "javascript:alert(1)",
+      "",
+    ]) {
+      expect(safeNextPath(bad, SELF)).toBe("/");
+    }
+  });
+
+  it("站內路徑原樣（含 query 與 hash）保留", () => {
+    expect(safeNextPath("/e/abc?x=1#y", SELF)).toBe("/e/abc?x=1#y");
+  });
+});
+
 describe("callbackHandler", () => {
   it("驗章過 → 303 導到站內路徑，並寫 host-only cookie", async () => {
     const res = await tpass().callbackHandler(
@@ -77,6 +96,15 @@ describe("callbackHandler", () => {
       const res = await tpass().callbackHandler(formPost({ token: await token(), next: bad }));
       expect(res.headers.get("Location")).toBe(`${SELF}/`);
     }
+  });
+
+  it("next 帶反斜線變體（WHATWG URL 會正規化成 /）不能逃出 selfUrl 的 origin", async () => {
+    const res = await tpass().callbackHandler(
+      formPost({ token: await token(), next: "/\\evil.invalid/x" }),
+    );
+    const location = res.headers.get("Location")!;
+    expect(new URL(location).origin).toBe(new URL(SELF).origin);
+    expect(location).not.toContain("evil.invalid");
   });
 
   it("別的服務的票 → 401，而且不寫 cookie", async () => {
